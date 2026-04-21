@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""
+Polymarket Trading Agent
+Prioritas: Data Fetching + Signal Analysis
+LLM: MiniMax 2.7
+"""
+
+# Core dependencies
+requests==2.31.0
+aiohttp==3.9.1
+websockets==12.0
+
+# Data Processing
+pandas==2.1.4
+numpy==1.26.2
+pydantic==2.5.2
+pydantic-settings==2.1.0
+
+# MiniMax LLM Integration
+openai==1.12.0  # MiniMax compatible API
+
+# Monitoring
+python-dotenv==1.0.0
+loguru==0.7.2
+schedule==1.2.1
+
+# HTTP Client
+httpx==0.26.0
