@@ -48,9 +48,12 @@ class TradingBot:
         await self.fetcher.close()
         await self.news_fetcher.close()
     
-    async def run_market_scan(self) -> dict:
+    async def run_market_scan(self, dry_run: bool = False) -> dict:
         """
         Jalankan full market scan dan generate signals.
+        
+        Args:
+            dry_run: If True, skip all file writes (CSV, JSON, dashboard)
         """
         logger.info("Starting market scan...")
         
@@ -69,12 +72,15 @@ class TradingBot:
             # Convert to dict
             market_dicts = [m.to_signal_dict() for m in markets]
             
-            # Export markets to CSV
-            logger.info("Exporting market data to CSV...")
-            for m in market_dicts:
-                self.csv_exporter.export_market(m)
+            # Export markets to CSV (skip if dry run)
+            if not dry_run:
+                logger.info("Exporting market data to CSV...")
+                for m in market_dicts:
+                    self.csv_exporter.export_market(m)
+            else:
+                logger.info("[DRY RUN] Skipping CSV export for market data...")
             
-            # 2. Fetch news for market questions
+            # Fetch news for market questions
             logger.info("Fetching related news...")
             questions = [m.question for m in markets]
             news_map = await self.news_fetcher.get_batch_news(questions)
@@ -86,15 +92,21 @@ class TradingBot:
                 top_n=10,
             )
             
-            # 4. Export signals to CSV
-            logger.info("Exporting signals to CSV...")
-            all_signals = result.get("all_signals", [])
-            self.csv_exporter.export_signals_batch(all_signals)
+            # 4. Export signals to CSV (skip if dry run)
+            if not dry_run:
+                logger.info("Exporting signals to CSV...")
+                all_signals = result.get("all_signals", [])
+                self.csv_exporter.export_signals_batch(all_signals)
+            else:
+                logger.info("[DRY RUN] Skipping CSV export for signals...")
             
-            # 5. Generate Dashboard
-            logger.info("Generating HTML dashboard...")
-            top_signals = result.get("top_signals", [])
-            self.dashboard_generator.generate_dashboard(top_signals)
+            # 5. Generate Dashboard (skip if dry run)
+            if not dry_run:
+                logger.info("Generating HTML dashboard...")
+                top_signals = result.get("top_signals", [])
+                self.dashboard_generator.generate_dashboard(top_signals)
+            else:
+                logger.info("[DRY RUN] Skipping dashboard generation...")
             
             # Update state
             self.last_run = datetime.now()
@@ -247,7 +259,10 @@ if __name__ == "__main__":
     import sys
     
     if len(sys.argv) > 1:
-        if sys.argv[1] == "--once":
+        if sys.argv[1] == "--dry-run":
+            # Run once without writing any files
+            asyncio.run(dry_run_main())
+        elif sys.argv[1] == "--once":
             # Run once and exit
             asyncio.run(main())
         elif sys.argv[1] == "--hourly":
@@ -289,5 +304,5 @@ if __name__ == "__main__":
     else:
         # Default: run once
         print("Running single scan...")
-        print("Use --hourly for scheduled mode")
+        print("Usage: python main.py [--once|--hourly|--serve|--dry-run]")
         asyncio.run(main())
