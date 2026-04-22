@@ -413,10 +413,64 @@ if __name__ == "__main__":
                 await asyncio.Event().wait()
 
             asyncio.run(serve_dashboard())
+
+        elif sys.argv[1] == "--backtest":
+            # Analyze historical performance
+            from src.utils.backtest import run_backtest_report
+            run_backtest_report()
+
+        elif sys.argv[1] == "--resolve":
+            # Check market resolutions and update trades P&L
+            from src.utils.resolution_tracker import ResolutionTracker
+            from src.data.fetcher import PolymarketFetcher
+
+            async def resolve_task():
+                tracker = ResolutionTracker()
+                try:
+                    fetcher = PolymarketFetcher()
+                    pending = tracker.load_pending_signals()
+                    if not pending:
+                        print("No pending signals to resolve.")
+                        return
+
+                    print(f"Checking resolution for {len(pending)} signals...")
+                    market_ids = list({s.get("market_id", "") for s in pending if s.get("market_id")})
+                    results = await tracker.check_bulk_resolutions(market_ids)
+
+                    resolved_count = 0
+                    for sig in pending:
+                        mid = sig.get("market_id", "")
+                        res = results.get(mid, {})
+                        if not res.get("resolved"):
+                            continue
+
+                        outcome = res.get("outcome", "VOID")
+                        # Parse entry prices
+                        import json as _json
+                        try:
+                            prices = _json.loads(sig.get("prices", "[]"))
+                            yes_entry = float(prices[0]) if len(prices) > 0 else 0.5
+                            no_entry = float(prices[1]) if len(prices) > 1 else 0.5
+                        except:
+                            yes_entry, no_entry = 0.5, 0.5
+
+                        bet_size = float(sig.get("recommended_size", 10) or 10)
+                        pnl = tracker.calculate_signal_pnl(sig, outcome, yes_entry, no_entry, bet_size)
+                        tracker.record_trade_from_signal(sig, outcome, pnl)
+                        resolved_count += 1
+                        print(f"  ✓ {sig.get('question','')[:50]} → {outcome} (${pnl:+.4f})")
+
+                    print(f"\nResolved {resolved_count} signals.")
+                    await fetcher.close()
+                finally:
+                    await tracker.close()
+
+            asyncio.run(resolve_task())
+
         else:
             print(f"Unknown argument: {sys.argv[1]}")
-            print("Usage: python main.py [--once|--hourly|--autoscan|--serve|--dry-run]")
+            print("Usage: python main.py [--once|--hourly|--autoscan|--serve|--dry-run|--backtest|--resolve]")
     else:
         print("Running single scan...")
-        print("Usage: python main.py [--once|--hourly|--autoscan|--serve|--dry-run]")
+        print("Usage: python main.py [--once|--hourly|--autoscan|--serve|--dry-run|--backtest|--resolve]")
         asyncio.run(main())
