@@ -106,48 +106,54 @@ class PolymarketFetcher:
         actives_only: bool = True,
     ) -> List[MarketData]:
         """
-        Ambil list markets dari Polymarket.
+        Ambil list markets dari Polymarket via Gamma REST API.
         """
-        query = """
-        query GetMarkets($limit: Int!, $closed: Boolean) {
-            markets(
-                limit: $limit
-                closed: $closed
-            ) {
-                id
-                question
-                description
-                outcomes
-                outcomePrices
-                volume
-                liquidity
-                conditionId
-                active
-                closed
-                creationDate
-                lastUpdated
-            }
-        }
-        """
-        
-        variables = {
-            "limit": limit,
-            "closed": closed,
-        }
-        
-        if actives_only:
-            variables["closed"] = False
-        
         try:
-            response = await self.client.post(
-                self.GRAPHQL_URL,
-                json={"query": query, "variables": variables}
+            params = {
+                "limit": limit,
+            }
+            if not closed:
+                params["closed"] = "false"
+            
+            response = await self.client.get(
+                f"{self.GAMMA_URL}/markets",
+                params=params,
             )
             response.raise_for_status()
-            data = response.json()
+            raw_markets = response.json()
             
-            markets = data.get("data", {}).get("markets", [])
-            return [MarketData(m) for m in markets]
+            # Normalize gamma-api response format to MarketData
+            markets = []
+            for m in raw_markets:
+                # Gamma API returns 'outcomePrices' as JSON string like '["0.53","0.47"]'
+                import json
+                try:
+                    outcome_prices = json.loads(m.get("outcomePrices", "[]"))
+                except (json.JSONDecodeError, TypeError):
+                    outcome_prices = []
+                
+                try:
+                    outcomes = json.loads(m.get("outcomes", "[]"))
+                except (json.JSONDecodeError, TypeError):
+                    outcomes = []
+                
+                normalized = {
+                    "id": m.get("id", ""),
+                    "question": m.get("question", ""),
+                    "description": m.get("description", ""),
+                    "outcomes": outcomes,
+                    "outcomePrices": outcome_prices,
+                    "volume": float(m.get("volume", 0) or 0),
+                    "liquidity": float(m.get("liquidity", 0) or 0),
+                    "conditionId": m.get("conditionId", ""),
+                    "active": m.get("active", True),
+                    "closed": m.get("closed", False),
+                    "creationDate": m.get("createdAt", ""),
+                    "lastUpdated": m.get("updatedAt", ""),
+                }
+                markets.append(MarketData(normalized))
+            
+            return markets
             
         except Exception as e:
             logger.error(f"Error fetching markets: {e}")
@@ -155,34 +161,35 @@ class PolymarketFetcher:
     
     async def get_market_by_question(self, question: str) -> Optional[MarketData]:
         """Cari market berdasarkan question text."""
-        query = """
-        query GetMarket($question: String!) {
-            markets(question: $question) {
-                id
-                question
-                description
-                outcomes
-                outcomePrices
-                volume
-                liquidity
-                conditionId
-                active
-                closed
-            }
-        }
-        """
-        
         try:
-            response = await self.client.post(
-                self.GRAPHQL_URL,
-                json={"query": query, "variables": {"question": question}}
+            response = await self.client.get(
+                f"{self.GAMMA_URL}/markets",
+                params={"question": question, "limit": 10},
             )
             response.raise_for_status()
-            data = response.json()
+            raw_markets = response.json()
             
-            markets = data.get("data", {}).get("markets", [])
-            if markets:
-                return MarketData(markets[0])
+            import json
+            for m in raw_markets:
+                if question.lower() in m.get("question", "").lower():
+                    try:
+                        outcome_prices = json.loads(m.get("outcomePrices", "[]"))
+                        outcomes = json.loads(m.get("outcomes", "[]"))
+                    except (json.JSONDecodeError, TypeError):
+                        outcome_prices = []
+                        outcomes = []
+                    
+                    normalized = {
+                        "id": m.get("id", ""),
+                        "question": m.get("question", ""),
+                        "outcomes": outcomes,
+                        "outcomePrices": outcome_prices,
+                        "volume": float(m.get("volume", 0) or 0),
+                        "liquidity": float(m.get("liquidity", 0) or 0),
+                        "active": m.get("active", True),
+                        "closed": m.get("closed", False),
+                    }
+                    return MarketData(normalized)
             return None
             
         except Exception as e:
