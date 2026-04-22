@@ -158,8 +158,9 @@ class NewsFetcher:
         
         news_dict = {}
         for question, news in results:
-            if not isinstance((question, news), Exception):
-                news_dict[question] = news
+            if not isinstance((question, news), tuple):
+                if not isinstance(question, Exception) and not isinstance(news, Exception):
+                    news_dict[question] = news
         
         return news_dict
     

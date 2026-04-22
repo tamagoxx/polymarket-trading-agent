@@ -6,12 +6,12 @@ from .data.signal_analyzer import SignalAnalyzer
 from .agent.llm import MiniMaxAgent
 from .utils.logger import setup_logger
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "settings",
     "PolymarketFetcher",
-    "SignalAnalyzer", 
+    "SignalAnalyzer",
     "MiniMaxAgent",
     "setup_logger",
 ]

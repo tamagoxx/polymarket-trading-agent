@@ -348,5 +348,6 @@ class PolymarketFetcher:
         return screened
 
 
-# Singleton instance
-fetcher = PolymarketFetcher()
+# NOTE: Do NOT create module-level singletons.
+# Instantiate via TradingBot or pass as dependency to allow proper cleanup.
+# Usage: fetcher = PolymarketFetcher()

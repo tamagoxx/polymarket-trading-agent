@@ -259,6 +259,29 @@ if __name__ == "__main__":
             # Run with dashboard server
             logger.info("Starting with dashboard server...")
             from aiohttp import web
+            from src.utils.dashboard import dashboard_generator
+
+            async def serve_dashboard():
+                async def handler(request):
+                    from pathlib import Path
+                    dashboard_path = Path("output/dashboard.html")
+                    if dashboard_path.exists():
+                        content = dashboard_path.read_text()
+                    else:
+                        content = "<html><body><h1>No dashboard yet. Run --once first.</h1></body></html>"
+                    return web.Response(text=content, content_type='text/html')
+
+                app = web.Application()
+                app.router.add_get('/', handler)
+                runner = web.AppRunner(app)
+                await runner.setup()
+                site = web.TCPSite(runner, 'localhost', 8080)
+                await site.start()
+                logger.info("Dashboard server running at http://localhost:8080")
+                # Keep server running
+                import asyncio
+                await asyncio.Event().wait()
+
             asyncio.run(serve_dashboard())
         else:
             print(f"Unknown argument: {sys.argv[1]}")

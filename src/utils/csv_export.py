@@ -115,10 +115,12 @@ class CSVExporter:
             )
     
     def _write_header(self, filepath: Path, headers: List[str]):
-        """Write CSV header row."""
-        with open(filepath, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(headers)
+        """Write CSV header row only if file doesn't exist."""
+        mode = "w" if not filepath.exists() else "a"
+        with open(filepath, mode, newline="", encoding="utf-8") as f:
+            if mode == "w":
+                writer = csv.writer(f)
+                writer.writerow(headers)
     
     def export_signal(self, signal: Dict[str, Any]) -> bool:
         """

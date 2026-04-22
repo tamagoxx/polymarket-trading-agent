@@ -170,15 +170,27 @@ class SignalAnalyzer:
         Analisis multiple markets sekaligus.
         """
         async def analyze_single(market: Dict):
-            market_news = news_data.get(market.get("id", "")) if news_data else None
-            return await self.analyze_market(market, market_news)
+            try:
+                market_news = news_data.get(market.get("id", "")) if news_data else None
+                return await self.analyze_market(market, market_news)
+            except Exception as e:
+                from loguru import logger
+                logger.error(f"Error analyzing market {market.get('id', 'unknown')}: {e}")
+                return None
         
         signals = await asyncio.gather(
             *[analyze_single(m) for m in markets_data],
             return_exceptions=True,
         )
         
-        return [s for s in signals if not isinstance(s, Exception)]
+        valid = []
+        for s in signals:
+            if isinstance(s, Exception):
+                from loguru import logger
+                logger.error(f"Batch analysis exception: {s}")
+            elif s is not None:
+                valid.append(s)
+        return valid
     
     def filter_actionable_signals(
         self,
