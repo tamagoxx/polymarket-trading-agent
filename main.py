@@ -17,6 +17,7 @@ from src.utils.logger import setup_logger
 from src.utils.csv_export import CSVExporter
 from src.utils.dashboard import DashboardGenerator
 from src.utils.scheduler import create_hourly_scheduler
+from src.utils.telegram_sender import send_telegram_summary, send_telegram_signal
 
 
 class TradingBot:
@@ -48,7 +49,11 @@ class TradingBot:
         await self.fetcher.close()
         await self.news_fetcher.close()
     
-    async def run_market_scan(self, dry_run: bool = False) -> dict:
+    async def run_market_scan(
+        self,
+        dry_run: bool = False,
+        send_telegram: bool = False,
+    ) -> dict:
         """
         Jalankan full market scan dan generate signals.
         
@@ -114,6 +119,22 @@ class TradingBot:
                 self.dashboard_generator.generate_dashboard(top_signals)
             else:
                 logger.info("[DRY RUN] Skipping dashboard generation...")
+
+            # 6. Send Telegram notification
+            if send_telegram and settings.telegram_bot_token and settings.telegram_chat_id:
+                logger.info("Sending Telegram summary...")
+                top_signals = result.get("top_signals", [])
+                total = len(markets)
+                sent = send_telegram_summary(
+                    settings.telegram_bot_token,
+                    settings.telegram_chat_id,
+                    top_signals,
+                    total,
+                )
+                if sent:
+                    logger.info("Telegram summary sent successfully")
+                else:
+                    logger.warning("Failed to send Telegram summary")
             
             # Update state
             self.last_run = datetime.now()
@@ -184,9 +205,52 @@ async def scheduled_scan():
     """Callback untuk scheduled scan."""
     bot = TradingBot()
     try:
-        await bot.run_market_scan()
+        await bot.run_market_scan(send_telegram=True)
     finally:
         await bot.close()
+
+
+# =====================
+# AUTOSCAN (scheduled + Telegram)
+# =====================
+
+async def autoscan_main():
+    """Auto-scan mode: scheduled scans with Telegram notifications."""
+    setup_logger(
+        log_level=settings.log_level,
+        log_file="logs/trading_bot.log",
+    )
+
+    token = settings.telegram_bot_token
+    chat = settings.telegram_chat_id
+    if token and chat:
+        logger.info(f"Autoscan with Telegram enabled → chat_id={chat}")
+    else:
+        logger.warning("Telegram not configured — will run without notifications")
+
+    bot = TradingBot()
+
+    try:
+        # Run once immediately
+        logger.info("\n--- Autoscan: Initial Scan ---\n")
+        await bot.run_market_scan(send_telegram=bool(token and chat))
+
+        # Then schedule
+        interval = getattr(settings, 'scan_interval_minutes', 60) * 60
+        logger.info(f"\n--- Autoscan: Scheduling every {interval}s ---")
+        scheduler = create_custom_scheduler(
+            lambda: bot.run_market_scan(send_telegram=bool(token and chat)),
+            interval,
+        )
+        scheduler.start()
+    finally:
+        await bot.close()
+
+
+def create_custom_scheduler(scan_callback, interval_seconds):
+    """Create scheduler with custom interval."""
+    from src.utils.scheduler import MarketScheduler
+    return MarketScheduler(scan_interval=interval_seconds, on_scan=scan_callback)
 
 
 # =====================
@@ -309,19 +373,19 @@ async def dry_run_main():
 
 if __name__ == "__main__":
     import sys
-    
+
     if len(sys.argv) > 1:
         if sys.argv[1] == "--dry-run":
-            # Run once without writing any files
             asyncio.run(dry_run_main())
         elif sys.argv[1] == "--once":
-            # Run once and exit
             asyncio.run(main())
         elif sys.argv[1] == "--hourly":
-            # Run scheduled scans
             logger.info("Starting in HOURLY scheduled mode...")
             scheduler = create_hourly_scheduler(scheduled_scan)
             scheduler.start()
+        elif sys.argv[1] == "--autoscan":
+            # Auto-scan: schedule + Telegram notifications
+            asyncio.run(autoscan_main())
         elif sys.argv[1] == "--serve":
             # Run with dashboard server
             logger.info("Starting with dashboard server...")
@@ -345,16 +409,14 @@ if __name__ == "__main__":
                 site = web.TCPSite(runner, 'localhost', 8080)
                 await site.start()
                 logger.info("Dashboard server running at http://localhost:8080")
-                # Keep server running
                 import asyncio
                 await asyncio.Event().wait()
 
             asyncio.run(serve_dashboard())
         else:
             print(f"Unknown argument: {sys.argv[1]}")
-            print("Usage: python main.py [--once|--hourly|--serve]")
+            print("Usage: python main.py [--once|--hourly|--autoscan|--serve|--dry-run]")
     else:
-        # Default: run once
         print("Running single scan...")
-        print("Usage: python main.py [--once|--hourly|--serve|--dry-run]")
+        print("Usage: python main.py [--once|--hourly|--autoscan|--serve|--dry-run]")
         asyncio.run(main())

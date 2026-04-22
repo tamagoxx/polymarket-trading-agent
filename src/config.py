@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     min_edge_threshold: float = 0.05
     max_daily_loss: float = 50.0
     max_daily_trades: int = 5
+
+    # Scheduler
+    scan_interval_minutes: int = 60
     
     # Logging
     log_level: str = "INFO"
