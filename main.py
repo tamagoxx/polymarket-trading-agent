@@ -81,9 +81,16 @@ class TradingBot:
                 logger.info("[DRY RUN] Skipping CSV export for market data...")
             
             # Fetch news for market questions
-            logger.info("Fetching related news...")
-            questions = [m.question for m in markets]
-            news_map = await self.news_fetcher.get_batch_news(questions)
+            # NOTE: News fetching is currently disconnected from signal analysis
+            # (news_map is fetched but never passed to generate_daily_signals).
+            # Skipping for now to avoid 100+ sequential RSS calls causing timeout.
+            # TODO: Properly integrate news_map into generate_daily_signals.
+            if dry_run:
+                logger.info("[DRY RUN] Skipping news fetch (slow, not yet integrated)...")
+            else:
+                logger.info("Fetching related news...")
+                questions = [m.question for m in markets]
+                news_map = await self.news_fetcher.get_batch_news(questions)
             
             # 3. Generate signals
             logger.info("Generating signals via LLM...")
