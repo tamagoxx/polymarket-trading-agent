@@ -1,0 +1,1 @@
+trade_id,timestamp,market_id,question,outcome,direction,size_usd,price,signal_edge,signal_confidence,status,pnl,notes

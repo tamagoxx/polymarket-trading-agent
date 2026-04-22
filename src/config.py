@@ -19,9 +19,10 @@ class Settings(BaseSettings):
     minimax_model: str = "abab6.5s-chat"
     
     # Polymarket API
-    polymarket_api_url: str = "https://clob.polymarket.com"
+    gamma_api_url: str = "https://gamma-api.polymarket.com"
+    data_api_url: str = "https://data-api.polymarket.com"
+    clob_api_url: str = "https://clob.polymarket.com"
     polymarket_api_key: str = ""
-    polymarket_graphql_url: str = "https://data.polymarket.com/graphql"
     
     # Polygon RPC
     polygon_rpc_url: str = "https://polygon-rpc.com"

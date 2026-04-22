@@ -77,8 +77,10 @@ class PolymarketFetcher:
     - Direct contract read (on-chain)
     """
     
-    BASE_URL = "https://clob.polymarket.com"
-    GRAPHQL_URL = "https://data.polymarket.com/graphql"
+    GAMMA_URL = "https://gamma-api.polymarket.com"
+    DATA_API_URL = "https://data-api.polymarket.com"
+    CLOB_URL = "https://clob.polymarket.com"
+    GRAPHQL_URL = "https://data-api.polymarket.com/graphql"
     
     def __init__(self):
         self.client = httpx.AsyncClient(
@@ -196,7 +198,7 @@ class PolymarketFetcher:
         Ambil orderbook untuk market tertentu.
         """
         try:
-            url = f"{self.BASE_URL}/orderbook/{condition_id}"
+            url = f"{self.CLOB_URL}/orderbook/{condition_id}"
             response = await self.client.get(url)
             response.raise_for_status()
             return response.json()

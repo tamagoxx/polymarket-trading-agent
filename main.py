@@ -255,6 +255,51 @@ async def main():
         await bot.close()
 
 
+async def dry_run_main():
+    """Dry run - simulate scan without writing any files."""
+    setup_logger(
+        log_level=settings.log_level,
+        log_file=None,  # No log file for dry run
+    )
+
+    print("=" * 60)
+    print("🔎 DRY RUN MODE — No files will be written")
+    print("=" * 60)
+
+    logger.info("DRY RUN: Starting market scan without file writes...")
+    logger.info(f"DRY RUN: LLM = {settings.minimax_model}")
+
+    bot = TradingBot()
+
+    try:
+        result = await bot.run_market_scan(dry_run=True)
+
+        top_signals = result.get("top_signals", [])
+
+        print("\n" + "=" * 60)
+        print("📊 DRY RUN SIGNAL SUMMARY")
+        print("=" * 60)
+
+        if top_signals:
+            print(f"\nFound {len(top_signals)} actionable signals:\n")
+            for i, signal in enumerate(top_signals, 1):
+                question = signal.get('question', '')[:55]
+                print(f"{i}. {question}")
+                print(f"   Signal: {signal['signal_type']} | Edge: {signal['edge']:+.1%} | Conf: {signal['confidence']:.0%}")
+                if signal.get('reasoning'):
+                    print(f"   → {signal['reasoning'][0][:80]}")
+                print()
+        else:
+            print("\nNo actionable signals found.")
+
+        print("=" * 60)
+        print("✅ DRY RUN COMPLETE — No files created")
+        print("=" * 60)
+
+    finally:
+        await bot.close()
+
+
 if __name__ == "__main__":
     import sys
     
